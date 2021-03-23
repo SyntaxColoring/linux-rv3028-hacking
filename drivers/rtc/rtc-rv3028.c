@@ -18,7 +18,7 @@
 #include <linux/of_device.h>
 #include <linux/regmap.h>
 #include <linux/rtc.h>
-//#include "rtc-core.h"
+#include "rtc-core.h"
 
 #define RV3028_SEC			0x00
 #define RV3028_MIN			0x01
@@ -650,6 +650,21 @@ static const struct regmap_config regmap_config = {
         .max_register = 0x37,
 };
 
+/**
+ * rv3028_rtc_sysfs_register - register sysfs files.
+ * @dev: pointer to device structure.
+ */
+static int rv3028_rtc_sysfs_register(struct device *dev)
+{
+	int ret = 0;
+
+	ret = sysfs_create_group(&dev->kobj, &rv3028_attr_group);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
 static int rv3028_probe(struct i2c_client *client)
 {
 	struct rv3028_data *rv3028;
@@ -662,7 +677,7 @@ static int rv3028_probe(struct i2c_client *client)
 		.word_size = 1,
 		.stride = 1,
 		.size = 2,
-		.type = NVMEM_TYPE_BATTERY_BACKED,
+		//.type = NVMEM_TYPE_BATTERY_BACKED,
 		.reg_read = rv3028_nvram_read,
 		.reg_write = rv3028_nvram_write,
 	};
@@ -671,7 +686,7 @@ static int rv3028_probe(struct i2c_client *client)
 		.word_size = 1,
 		.stride = 1,
 		.size = 43,
-		.type = NVMEM_TYPE_EEPROM,
+		//.type = NVMEM_TYPE_EEPROM,
 		.reg_read = rv3028_eeprom_read,
 		.reg_write = rv3028_eeprom_write,
 	};
@@ -792,22 +807,22 @@ static int rv3028_probe(struct i2c_client *client)
 			return ret;
 	}
 
-	ret = rtc_add_group(rv3028->rtc, &rv3028_attr_group);
+	ret = rv3028_rtc_sysfs_register(&client->dev);
 	if (ret)
 		return ret;
 
-	rv3028->rtc->range_min = RTC_TIMESTAMP_BEGIN_2000;
-	rv3028->rtc->range_max = RTC_TIMESTAMP_END_2099;
+	//rv3028->rtc->range_min = RTC_TIMESTAMP_BEGIN_2000;
+	//rv3028->rtc->range_max = RTC_TIMESTAMP_END_2099;
 	rv3028->rtc->ops = &rv3028_rtc_ops;
 	ret = rtc_register_device(rv3028->rtc);
 	if (ret)
 		return ret;
-
+/*
 	nvmem_cfg.priv = rv3028->regmap;
 	rtc_nvmem_register(rv3028->rtc, &nvmem_cfg);
 	eeprom_cfg.priv = rv3028->regmap;
 	rtc_nvmem_register(rv3028->rtc, &eeprom_cfg);
-
+*/
 	rv3028->rtc->max_user_freq = 1;
 
 	return 0;
