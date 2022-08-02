@@ -10,6 +10,7 @@
 
 #include <linux/bcd.h>
 #include <linux/bitops.h>
+#include <linux/delay.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
@@ -79,6 +80,9 @@
 
 #define OFFSET_STEP_PPT			953674
 
+// TODO: What is an appropriate value?
+#define WORKAROUND_SLEEP_US		10000
+
 enum rv3028_type {
 	rv_3028,
 };
@@ -118,6 +122,7 @@ static ssize_t timestamp0_show(struct device *dev,
 	if (!count)
 		return 0;
 
+	// Might need a sleep here, too?
 	ret = regmap_bulk_read(rv3028->regmap, RV3028_TS_SEC, date,
 			       sizeof(date));
 	if (ret)
@@ -146,6 +151,7 @@ static ssize_t timestamp0_count_show(struct device *dev,
 	struct rv3028_data *rv3028 = dev_get_drvdata(dev->parent);
 	int ret, count;
 
+	// Might need a sleep here, too?
 	ret = regmap_read(rv3028->regmap, RV3028_TS_COUNT, &count);
 	if (ret)
 		return ret;
@@ -227,6 +233,11 @@ static int rv3028_get_time(struct device *dev, struct rtc_time *tm)
 		return -EINVAL;
 	}
 
+	// TODO: Is this the right kind of sleep?
+	// We probably want to let independent things happen while this sleep is ongoing.
+	// Ideally, we would block other access to this device, though.
+	// Do we need a lock?
+	udelay(WORKAROUND_SLEEP_US);
 	ret = regmap_bulk_read(rv3028->regmap, RV3028_SEC, date, sizeof(date));
 	if (ret)
 		return ret;
@@ -378,6 +389,7 @@ static int rv3028_read_offset(struct device *dev, long *offset)
 	struct rv3028_data *rv3028 = dev_get_drvdata(dev);
 	int ret, value, steps;
 
+	// Might need a sleep here, too?
 	ret = regmap_read(rv3028->regmap, RV3028_OFFSET, &value);
 	if (ret < 0)
 		return ret;
