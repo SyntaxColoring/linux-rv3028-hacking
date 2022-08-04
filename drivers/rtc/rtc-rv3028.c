@@ -81,7 +81,7 @@
 #define OFFSET_STEP_PPT			953674
 
 // TODO: What is an appropriate value?
-#define WORKAROUND_SLEEP_US		10000
+#define WORKAROUND_SLEEP_US		2000
 
 enum rv3028_type {
 	rv_3028,
