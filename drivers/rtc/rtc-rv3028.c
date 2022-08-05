@@ -80,8 +80,9 @@
 
 #define OFFSET_STEP_PPT			953674
 
-// TODO: What is an appropriate value?
-#define WORKAROUND_SLEEP_US		2000
+// 2000 us was chosen because it's the maximum supported by udelay() on ARM.
+// Shorter delays might work, but we haven't tested with them.
+#define WORKAROUND_DELAY_US		2000
 
 enum rv3028_type {
 	rv_3028,
@@ -121,8 +122,6 @@ static ssize_t timestamp0_show(struct device *dev,
 
 	if (!count)
 		return 0;
-
-	// Might need a sleep here, too?
 	ret = regmap_bulk_read(rv3028->regmap, RV3028_TS_SEC, date,
 			       sizeof(date));
 	if (ret)
@@ -151,7 +150,6 @@ static ssize_t timestamp0_count_show(struct device *dev,
 	struct rv3028_data *rv3028 = dev_get_drvdata(dev->parent);
 	int ret, count;
 
-	// Might need a sleep here, too?
 	ret = regmap_read(rv3028->regmap, RV3028_TS_COUNT, &count);
 	if (ret)
 		return ret;
@@ -233,11 +231,32 @@ static int rv3028_get_time(struct device *dev, struct rtc_time *tm)
 		return -EINVAL;
 	}
 
-	// TODO: Is this the right kind of sleep?
-	// We probably want to let independent things happen while this sleep is ongoing.
-	// Ideally, we would block other access to this device, though.
-	// Do we need a lock?
-	udelay(WORKAROUND_SLEEP_US);
+	// NOTE(max@opentrons.com, 2022-08-04):
+	//
+	// To work around a suspected undocumented RV-3028 silicon erratum,
+	// we let the RV-3028 rest before we read its time registers.
+	//
+	// Whenever there is an open I2C transaction, the RV-3028 will hold its
+	// time registers steady, in order to avoid a torn read/write hazard.
+	// If the time registers would have ticked to a new value during that
+	// transaction, the RV-3028 is supposed to postpone that update and
+	// apply it as soon as the transaction ends.
+	//
+	// But on some boards, we're seeing the time registers never update at
+	// all whenever they're under rapid polling. `hwclock` does rapid
+	// polling under normal usage, so this causes it to error with
+	// "Timed out waiting for time change".
+	//
+	// We theorize that problematic RV-3028 chips need a big block of idle
+	// bus time in order to apply postponed time updates.
+	//
+	// See Opentrons Jira RSS-9 for investigation details.
+	//
+	// We use udelay() instead of usleep() because timers-howto.txt says
+	// we must use udelay() when we're in an atomic context. I don't know if
+	// we're in an atomic context here, so I'm assuming yes to be safe.
+	udelay(WORKAROUND_DELAY_US);
+
 	ret = regmap_bulk_read(rv3028->regmap, RV3028_SEC, date, sizeof(date));
 	if (ret)
 		return ret;
@@ -389,7 +408,6 @@ static int rv3028_read_offset(struct device *dev, long *offset)
 	struct rv3028_data *rv3028 = dev_get_drvdata(dev);
 	int ret, value, steps;
 
-	// Might need a sleep here, too?
 	ret = regmap_read(rv3028->regmap, RV3028_OFFSET, &value);
 	if (ret < 0)
 		return ret;
