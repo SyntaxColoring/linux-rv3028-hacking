@@ -122,6 +122,7 @@ static ssize_t timestamp0_show(struct device *dev,
 
 	if (!count)
 		return 0;
+
 	ret = regmap_bulk_read(rv3028->regmap, RV3028_TS_SEC, date,
 			       sizeof(date));
 	if (ret)
